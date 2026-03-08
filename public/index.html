@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Convoy Safety Demo</title>
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+  <div class="app">
+    <header class="topbar">
+      <div>
+        <h1>Convoy Safety Demo</h1>
+        <p>Real-time car-to-car brake alert proof of concept</p>
+      </div>
+      <div id="connBadge" class="badge offline">Offline</div>
+    </header>
+
+    <main class="grid">
+      <section class="card">
+        <h2>Join Convoy</h2>
+
+        <label>Convoy ID</label>
+        <input id="convoyId" value="lagos-demo" />
+
+        <label>Car ID</label>
+        <input id="carId" value="A" />
+
+        <label>Position in Convoy</label>
+        <input id="position" type="number" min="1" value="1" />
+
+        <label>Speed (km/h)</label>
+        <input id="speedKmh" type="number" min="0" value="50" />
+
+        <label>Gap to Front Car (meters)</label>
+        <input id="gapToFrontM" type="number" min="1" value="20" />
+
+        <button id="joinBtn">Join Convoy</button>
+      </section>
+
+      <section class="card">
+        <h2>Drive Controls</h2>
+
+        <div class="controls">
+          <button id="updateBtn">Send Update</button>
+          <button id="brakeBtn" class="danger">HARD BRAKE</button>
+          <button id="releaseBtn">Release Brake</button>
+        </div>
+
+        <div class="stats">
+          <div><span>My Car:</span> <strong id="meLabel">—</strong></div>
+          <div><span>Status:</span> <strong id="meStatus">Not joined</strong></div>
+          <div><span>Front Car:</span> <strong id="frontCar">—</strong></div>
+          <div><span>TTC:</span> <strong id="ttc">—</strong></div>
+          <div><span>Danger:</span> <strong id="danger">—</strong></div>
+        </div>
+      </section>
+
+      <section class="card full">
+        <h2>Convoy State</h2>
+        <div id="carsList" class="carsList"></div>
+      </section>
+
+      <section class="card full">
+        <h2>Emergency Alert</h2>
+        <div id="alertBox" class="alertBox safe">
+          <div id="alertTitle">No active emergency</div>
+          <div id="alertText">Waiting for convoy events...</div>
+        </div>
+      </section>
+
+      <section class="card full">
+        <h2>Debug Console</h2>
+        <details open>
+          <summary>Logs</summary>
+          <textarea id="logs" readonly></textarea>
+        </details>
+      </section>
+    </main>
+  </div>
+
+  <audio id="beep" preload="auto"></audio>
+
+  <script src="./app.js"></script>
+</body>
+</html>
