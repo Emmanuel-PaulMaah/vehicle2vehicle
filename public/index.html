@@ -4,6 +4,12 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Convoy Safety Demo</title>
+  <link
+  rel="stylesheet"
+  href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+  integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+  crossorigin=""
+/>
   <link rel="stylesheet" href="./style.css" />
 </head>
 <body>
@@ -62,6 +68,14 @@
       </section>
 
       <section class="card full">
+        <h2>Map Mode</h2>
+        <p class="subtle">
+          Simulated convoy layout using convoy order and gap-to-front distance.
+        </p>
+        <div id="map"></div>
+      </section>
+
+      <section class="card full">
         <h2>Emergency Alert</h2>
         <div id="alertBox" class="alertBox safe">
           <div id="alertTitle">No active emergency</div>
@@ -81,6 +95,11 @@
 
   <audio id="beep" preload="auto"></audio>
 
+  <script
+  src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+  integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+  crossorigin=""
+></script>
   <script src="./app.js"></script>
 </body>
 </html>
