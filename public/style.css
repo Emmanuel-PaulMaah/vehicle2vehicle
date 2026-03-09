@@ -254,3 +254,204 @@ textarea#logs {
 .leaflet-control-attribution {
   font-size: 10px;
 }
+
+.panelToggle {
+  width: 100%;
+}
+
+.panelToggle > summary {
+  list-style: none;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  font-weight: 800;
+  font-size: 20px;
+}
+
+.panelToggle > summary::-webkit-details-marker {
+  display: none;
+}
+
+.panelToggle > summary::after {
+  content: "▾";
+  font-size: 18px;
+  opacity: 0.8;
+  transition: transform 0.2s ease;
+}
+
+.panelToggle[open] > summary::after {
+  transform: rotate(180deg);
+}
+
+.summaryHint {
+  margin-left: auto;
+  margin-right: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  opacity: 0.7;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.panelBody {
+  margin-top: 14px;
+}
+
+.controls {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.controls button {
+  width: 100%;
+}
+
+.carMarkerWrap {
+  width: 56px;
+  height: 28px;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.carMarkerBody {
+  width: 42px;
+  height: 22px;
+  border-radius: 8px;
+  position: relative;
+  box-sizing: border-box;
+  transition: transform 0.15s ease;
+}
+
+.carMarkerBody::before,
+.carMarkerBody::after {
+  content: "";
+  position: absolute;
+  top: 4px;
+  width: 5px;
+  height: 14px;
+  background: #0b1020;
+  border-radius: 999px;
+}
+
+.carMarkerBody::before {
+  left: -4px;
+}
+
+.carMarkerBody::after {
+  right: -4px;
+}
+
+.carMarkerCabin {
+  position: absolute;
+  left: 9px;
+  right: 9px;
+  top: 4px;
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.45);
+}
+
+.carMarkerLabel {
+  position: absolute;
+  top: -22px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 11px;
+  font-weight: 800;
+  white-space: nowrap;
+  color: #eef2ff;
+  background: rgba(10, 16, 32, 0.88);
+  padding: 2px 6px;
+  border-radius: 999px;
+  border: 1px solid #31466f;
+}
+
+.carMarkerBody.state-safe {
+  background: #1f9d55;
+  border: 2px solid #dbe7ff;
+}
+
+.carMarkerBody.state-caution {
+  background: #3559d8;
+  border: 2px solid #dbe7ff;
+}
+
+.carMarkerBody.state-warning {
+  background: #b1791c;
+  border: 2px solid #fff0cc;
+  box-shadow: 0 0 0 6px rgba(177, 121, 28, 0.18);
+}
+
+.carMarkerBody.state-critical,
+.carMarkerBody.state-braking {
+  background: #d92d20;
+  border: 2px solid #ffd7d2;
+  box-shadow: 0 0 0 8px rgba(217, 45, 32, 0.18);
+}
+
+.carMarkerBody.is-me {
+  outline: 3px solid #ffffff;
+  outline-offset: 2px;
+}
+
+.carMarkerBody.is-braking {
+  transform: scale(1.06);
+}
+
+@media (max-width: 800px) {
+  .topbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .app {
+    padding: 12px;
+  }
+
+  .card {
+    padding: 14px;
+  }
+
+  .controls {
+    grid-template-columns: 1fr;
+  }
+
+  .stats div {
+    grid-template-columns: 1fr;
+    display: grid;
+    justify-content: start;
+  }
+
+  #map {
+    height: 300px;
+  }
+
+  .carRow {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+}
+
+@media (max-width: 480px) {
+  #map {
+    height: 260px;
+  }
+
+  .topbar h1 {
+    font-size: 22px;
+  }
+
+  .panelToggle > summary {
+    font-size: 18px;
+  }
+
+  button,
+  input {
+    min-height: 46px;
+  }
+}

@@ -24,43 +24,58 @@
 
     <main class="grid">
       <section class="card">
-        <h2>Join Convoy</h2>
+  <details class="panelToggle" open>
+    <summary>
+      <span>Join Convoy</span>
+      <span class="summaryHint">Setup</span>
+    </summary>
 
-        <label>Convoy ID</label>
-        <input id="convoyId" value="lagos-demo" />
+    <div class="panelBody">
+      <label>Convoy ID</label>
+      <input id="convoyId" value="lagos-demo" />
 
-        <label>Car ID</label>
-        <input id="carId" value="A" />
+      <label>Car ID</label>
+      <input id="carId" value="A" />
 
-        <label>Position in Convoy</label>
-        <input id="position" type="number" min="1" value="1" />
+      <label>Position in Convoy</label>
+      <input id="position" type="number" min="1" value="1" />
 
-        <label>Speed (km/h)</label>
-        <input id="speedKmh" type="number" min="0" value="50" />
+      <label>Speed (km/h)</label>
+      <input id="speedKmh" type="number" min="0" value="50" />
 
-        <label>Gap to Front Car (meters)</label>
-        <input id="gapToFrontM" type="number" min="1" value="20" />
+      <label>Gap to Front Car (meters)</label>
+      <input id="gapToFrontM" type="number" min="1" value="20" />
 
-        <button id="joinBtn">Join Convoy</button>
-      </section>
+      <button id="joinBtn">Join Convoy</button>
+    </div>
+  </details>
+</section>
 
       <section class="card">
-        <h2>Drive Controls</h2>
+  <details class="panelToggle" open>
+    <summary>
+      <span>Drive Controls</span>
+      <span class="summaryHint">Actions</span>
+    </summary>
 
-        <div class="controls">
-          <button id="updateBtn">Send Update</button>
-          <button id="brakeBtn" class="danger">HARD BRAKE</button>
-          <button id="releaseBtn">Release Brake</button>
-        </div>
+    <div class="panelBody">
+      <div class="controls">
+        <button id="updateBtn">Send Update</button>
+        <button id="brakeBtn" class="danger">HARD BRAKE</button>
+        <button id="releaseBtn">Release Brake</button>
+        <button id="testBeepBtn">Test Beep</button>
+      </div>
 
-        <div class="stats">
-          <div><span>My Car:</span> <strong id="meLabel">—</strong></div>
-          <div><span>Status:</span> <strong id="meStatus">Not joined</strong></div>
-          <div><span>Front Car:</span> <strong id="frontCar">—</strong></div>
-          <div><span>TTC:</span> <strong id="ttc">—</strong></div>
-          <div><span>Danger:</span> <strong id="danger">—</strong></div>
-        </div>
-      </section>
+      <div class="stats">
+        <div><span>My Car:</span> <strong id="meLabel">—</strong></div>
+        <div><span>Status:</span> <strong id="meStatus">Not joined</strong></div>
+        <div><span>Front Car:</span> <strong id="frontCar">—</strong></div>
+        <div><span>TTC:</span> <strong id="ttc">—</strong></div>
+        <div><span>Danger:</span> <strong id="danger">—</strong></div>
+      </div>
+    </div>
+  </details>
+</section>
 
       <section class="card full">
         <h2>Convoy State</h2>
@@ -84,12 +99,17 @@
       </section>
 
       <section class="card full">
-        <h2>Debug Console</h2>
-        <details open>
-          <summary>Logs</summary>
-          <textarea id="logs" readonly></textarea>
-        </details>
-      </section>
+  <details class="panelToggle">
+    <summary>
+      <span>Debug Console</span>
+      <span class="summaryHint">Logs</span>
+    </summary>
+
+    <div class="panelBody">
+      <textarea id="logs" readonly></textarea>
+    </div>
+  </details>
+</section>
     </main>
   </div>
 

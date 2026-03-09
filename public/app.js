@@ -8,6 +8,7 @@ const joinBtn = document.getElementById("joinBtn");
 const updateBtn = document.getElementById("updateBtn");
 const brakeBtn = document.getElementById("brakeBtn");
 const releaseBtn = document.getElementById("releaseBtn");
+const testBeepBtn = document.getElementById("testBeepBtn");
 
 const connBadge = document.getElementById("connBadge");
 const carsList = document.getElementById("carsList");
@@ -30,6 +31,29 @@ let lastRoomState = null;
 let map = null;
 let convoyPolyline = null;
 const mapMarkers = new Map();
+
+// ========================
+// Convoy animation state
+// ========================
+
+let animationRunning = false;
+let lastFrameTime = null;
+
+const carSimState = new Map();
+// carId -> { distBehindLeader, speedMps }
+
+const SPEED_SCALE = 0.5;
+// slows simulation so movement is readable
+
+const BRAKE_DECEL_MPS2 = 8;
+const FOLLOWER_BRAKE_DECEL_MPS2 = 6;
+const CATCHUP_ACCEL_MPS2 = 2.5;
+const RESUME_ACCEL_MPS2 = 3.2;
+const GAP_EASE_MPS = 8;
+
+// repeating warning beep state
+let beepIntervalId = null;
+let audioCtx = null;
 
 const MAP_BASE = {
   lat: 6.5244,   // Lagos-ish default
@@ -87,8 +111,9 @@ function ensureSocket() {
     log("WebSocket connected");
   });
 
-  ws.addEventListener("close", () => {
+   ws.addEventListener("close", () => {
     setConn(false);
+    stopWarningBeep();
     log("WebSocket disconnected");
   });
 
@@ -107,31 +132,85 @@ function ensureSocket() {
     }
 
     if (msg.type === "room_state") {
-      lastRoomState = msg;
-      renderRoom(msg);
-      renderMap(msg);
-    }
+  lastRoomState = msg;
+  renderRoom(msg);
+  renderMap(msg);
+  startAnimation();
+}
   });
 }
 
-function playBeep() {
+async function ensureAudioReady() {
   try {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
+    if (!audioCtx) {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      log(`AudioContext created: state=${audioCtx.state}`);
+    }
 
-    osc.type = "sine";
-    osc.frequency.value = 880;
-    gain.gain.value = 0.08;
+    if (audioCtx.state === "suspended") {
+      await audioCtx.resume();
+      log(`AudioContext resumed: state=${audioCtx.state}`);
+    }
+
+    return audioCtx.state === "running";
+  } catch (err) {
+    log(`Audio init failed: ${err.message}`);
+    return false;
+  }
+}
+
+async function playBeepOnce() {
+  try {
+    const ready = await ensureAudioReady();
+    if (!ready) {
+      log("Audio not ready for beep");
+      return;
+    }
+
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+
+    osc.type = "square";
+    osc.frequency.value = 980;
+
+    gain.gain.setValueAtTime(0.0001, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.12, audioCtx.currentTime + 0.01);
+    gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.22);
 
     osc.connect(gain);
-    gain.connect(ctx.destination);
+    gain.connect(audioCtx.destination);
 
-    osc.start();
-    osc.stop(ctx.currentTime + 0.18);
+    osc.start(audioCtx.currentTime);
+    osc.stop(audioCtx.currentTime + 0.24);
+
+    log("Beep played");
   } catch (err) {
     log(`Beep failed: ${err.message}`);
   }
+}
+
+async function startWarningBeep() {
+  if (beepIntervalId) return;
+
+  const ready = await ensureAudioReady();
+  if (!ready) {
+    log("Could not start repeating beep");
+    return;
+  }
+
+  log("Starting repeating warning beep");
+  playBeepOnce();
+
+  beepIntervalId = setInterval(() => {
+    playBeepOnce();
+  }, 700);
+}
+
+function stopWarningBeep() {
+  if (!beepIntervalId) return;
+  clearInterval(beepIntervalId);
+  beepIntervalId = null;
+  log("Stopped warning beep");
 }
 
 function handleBrakeEvent(msg) {
@@ -142,7 +221,7 @@ function handleBrakeEvent(msg) {
     alertTitle.textContent = "Brake alert ahead";
     alertText.textContent = `${msg.sourceCarId} in front triggered HARD BRAKE. Check following distance now.`;
     alertBox.className = "alertBox warning flash";
-    playBeep();
+    playBeepOnce();
   }
 }
 
@@ -159,6 +238,16 @@ function renderRoom(roomMsg) {
     frontCar.textContent = me.frontCarId ?? "None";
     ttc.textContent = me.timeToCollisionSec == null ? "—" : `${me.timeToCollisionSec}s`;
     danger.textContent = me.dangerLevel;
+
+        const immediateFrontIsBraking =
+      Boolean(me.frontCarId) &&
+      cars.some((c) => c.carId === me.frontCarId && c.isBraking);
+
+    if (immediateFrontIsBraking) {
+      startWarningBeep();
+    } else {
+      stopWarningBeep();
+    }
 
     if (me.dangerLevel === "critical") {
       alertTitle.textContent = "BRAKE NOW";
@@ -178,6 +267,10 @@ function renderRoom(roomMsg) {
       alertText.textContent = "Waiting for convoy events...";
       alertBox.className = "alertBox safe";
     }
+  }
+
+  if (!me) {
+    stopWarningBeep();
   }
 
   for (const car of cars) {
@@ -255,34 +348,29 @@ function computeMapPoints(cars) {
   if (!sorted.length) return [];
 
   const points = [];
-  let cumulativeBehindLeader = 0;
 
   for (let i = 0; i < sorted.length; i++) {
     const car = sorted[i];
 
-    if (i === 0) {
-      const leaderPoint = pointFromBase(
-        MAP_BASE.lat,
-        MAP_BASE.lng,
-        0,
-        0,
-        ROAD_BEARING_DEG
-      );
+    if (!carSimState.has(car.carId)) {
+      const fallbackDist = i === 0
+        ? 0
+        : sorted
+            .slice(1, i + 1)
+            .reduce((sum, c) => sum + Number(c.gapToFrontM || 0) * MAP_GAP_SCALE, 0);
 
-      points.push({
-        ...car,
-        lat: leaderPoint.lat,
-        lng: leaderPoint.lng
+      carSimState.set(car.carId, {
+        distBehindLeader: fallbackDist,
+        speedMps: (Number(car.speedKmh || 0) / 3.6) * SPEED_SCALE
       });
-      continue;
     }
 
-    cumulativeBehindLeader += Number(car.gapToFrontM || 0) * MAP_GAP_SCALE;
+    const sim = carSimState.get(car.carId);
 
     const point = pointFromBase(
       MAP_BASE.lat,
       MAP_BASE.lng,
-      -cumulativeBehindLeader,
+      -sim.distBehindLeader,
       ROAD_LANE_OFFSET_M,
       ROAD_BEARING_DEG
     );
@@ -290,7 +378,8 @@ function computeMapPoints(cars) {
     points.push({
       ...car,
       lat: point.lat,
-      lng: point.lng
+      lng: point.lng,
+      animatedSpeedMps: sim.speedMps
     });
   }
 
@@ -298,31 +387,27 @@ function computeMapPoints(cars) {
 }
 
 function markerHtmlForCar(car, isMe) {
-  const bg =
-    car.dangerLevel === "critical"
-      ? "#d92d20"
-      : car.dangerLevel === "warning"
-      ? "#b1791c"
-      : car.dangerLevel === "caution"
-      ? "#3559d8"
-      : "#153e2d";
+  let stateClass = "state-safe";
 
-  const border = isMe ? "3px solid #ffffff" : "2px solid #dbe7ff";
-  const label = `${car.carId}${car.isBraking ? " • BRAKE" : ""}`;
+  if (car.isBraking) {
+    stateClass = "state-braking";
+  } else if (car.dangerLevel === "critical") {
+    stateClass = "state-critical";
+  } else if (car.dangerLevel === "warning") {
+    stateClass = "state-warning";
+  } else if (car.dangerLevel === "caution") {
+    stateClass = "state-caution";
+  }
+
+  const meClass = isMe ? "is-me" : "";
+  const brakingClass = car.isBraking ? "is-braking" : "";
 
   return `
-    <div style="
-      background:${bg};
-      color:#fff;
-      border:${border};
-      border-radius:999px;
-      padding:8px 12px;
-      font-weight:800;
-      font-size:12px;
-      white-space:nowrap;
-      box-shadow:0 6px 18px rgba(0,0,0,0.25);
-    ">
-      ${label}
+    <div class="carMarkerWrap">
+      <div class="carMarkerLabel">${car.carId}</div>
+      <div class="carMarkerBody ${stateClass} ${meClass} ${brakingClass}">
+        <div class="carMarkerCabin"></div>
+      </div>
     </div>
   `;
 }
@@ -334,15 +419,16 @@ function upsertMarker(car) {
   const icon = L.divIcon({
     className: "mapCarLabel",
     html: markerHtmlForCar(car, isMe),
-    iconSize: [90, 30],
-    iconAnchor: [45, 15]
+    iconSize: [56, 28],
+    iconAnchor: [28, 14]
   });
 
-  const popupHtml = `
+   const popupHtml = `
     <div>
       <strong>${car.carId}</strong><br />
       Position: ${car.position}<br />
-      Speed: ${car.speedKmh} km/h<br />
+      Cruise speed: ${car.speedKmh} km/h<br />
+      Animated speed: ${Math.round((car.animatedSpeedMps || 0) * 3.6)} km/h<br />
       Gap: ${car.gapToFrontM} m<br />
       Front car: ${car.frontCarId ?? "—"}<br />
       TTC: ${car.timeToCollisionSec ?? "—"}<br />
@@ -399,7 +485,8 @@ function renderMap(roomMsg) {
   }
 }
 
-joinBtn.addEventListener("click", () => {
+joinBtn.addEventListener("click", async () => {
+  await ensureAudioReady();
   ensureSocket();
 
   const tryJoin = () => {
@@ -422,7 +509,7 @@ joinBtn.addEventListener("click", () => {
   tryJoin();
 });
 
-updateBtn.addEventListener("click", () => {
+updateBtn.addEventListener("click", async () => {
   if (!joined) {
     log("Join a convoy first");
     return;
@@ -438,7 +525,9 @@ updateBtn.addEventListener("click", () => {
   log(`Updated state: speed=${state.speedKmh}, gap=${state.gapToFrontM}, pos=${state.position}`);
 });
 
-brakeBtn.addEventListener("click", () => {
+brakeBtn.addEventListener("click", async () => {
+  await ensureAudioReady();
+
   if (!joined) {
     log("Join a convoy first");
     return;
@@ -448,7 +537,9 @@ brakeBtn.addEventListener("click", () => {
   log("Triggered HARD BRAKE");
 });
 
-releaseBtn.addEventListener("click", () => {
+releaseBtn.addEventListener("click", async () => {
+  await ensureAudioReady();
+
   if (!joined) {
     log("Join a convoy first");
     return;
@@ -458,5 +549,118 @@ releaseBtn.addEventListener("click", () => {
   log("Released brake");
 });
 
+function updateSimulation(dt) {
+  if (!lastRoomState) return;
+
+  const cars = [...lastRoomState.cars].sort((a, b) => a.position - b.position);
+  if (!cars.length) return;
+
+  for (let i = 0; i < cars.length; i++) {
+    const car = cars[i];
+
+    if (!carSimState.has(car.carId)) {
+      const distBehindLeader =
+        i === 0
+          ? 0
+          : cars
+              .slice(1, i + 1)
+              .reduce((sum, c) => sum + Number(c.gapToFrontM || 0) * MAP_GAP_SCALE, 0);
+
+      carSimState.set(car.carId, {
+        distBehindLeader,
+        speedMps: (Number(car.speedKmh || 0) / 3.6) * SPEED_SCALE
+      });
+    }
+  }
+
+  for (let i = 0; i < cars.length; i++) {
+    const car = cars[i];
+    const sim = carSimState.get(car.carId);
+    const targetCruiseSpeed = (Number(car.speedKmh || 0) / 3.6) * SPEED_SCALE;
+
+    if (i === 0) {
+      if (car.isBraking) {
+        sim.speedMps = Math.max(0, sim.speedMps - BRAKE_DECEL_MPS2 * dt);
+      } else {
+        sim.speedMps = Math.min(
+          targetCruiseSpeed,
+          sim.speedMps + RESUME_ACCEL_MPS2 * dt
+        );
+      }
+
+      sim.distBehindLeader += sim.speedMps * dt;
+      continue;
+    }
+
+    const frontCar = cars[i - 1];
+    const frontSim = carSimState.get(frontCar.carId);
+
+    const desiredGap = Number(car.gapToFrontM || 0) * MAP_GAP_SCALE;
+    const actualGap = sim.distBehindLeader - frontSim.distBehindLeader;
+    const frontIsBraking = Boolean(frontCar.isBraking);
+
+    if (frontIsBraking) {
+      sim.speedMps = Math.max(0, sim.speedMps - FOLLOWER_BRAKE_DECEL_MPS2 * dt);
+    } else {
+      const gapError = actualGap - desiredGap;
+
+      if (gapError > desiredGap * 0.25) {
+        sim.speedMps = Math.min(
+          targetCruiseSpeed,
+          sim.speedMps + CATCHUP_ACCEL_MPS2 * dt
+        );
+      } else {
+        sim.speedMps = Math.min(
+          targetCruiseSpeed,
+          sim.speedMps + RESUME_ACCEL_MPS2 * dt
+        );
+      }
+    }
+
+    sim.distBehindLeader += sim.speedMps * dt;
+
+    const newActualGap = sim.distBehindLeader - frontSim.distBehindLeader;
+
+    if (newActualGap < desiredGap) {
+      sim.distBehindLeader = frontSim.distBehindLeader + desiredGap;
+      sim.speedMps = Math.min(sim.speedMps, frontSim.speedMps + GAP_EASE_MPS * 0.02);
+    }
+  }
+}
+
+function animationLoop(ts) {
+
+  if (!animationRunning) return;
+
+  if (!lastFrameTime) lastFrameTime = ts;
+
+  const dt = (ts - lastFrameTime) / 1000;
+
+  lastFrameTime = ts;
+
+  updateSimulation(dt);
+
+  if (lastRoomState) renderMap(lastRoomState);
+
+  requestAnimationFrame(animationLoop);
+}
+
+function startAnimation() {
+
+  if (animationRunning) return;
+
+  animationRunning = true;
+
+  requestAnimationFrame(animationLoop);
+
+  log("Convoy animation started");
+}
+
+testBeepBtn.addEventListener("click", async () => {
+  await ensureAudioReady();
+  await playBeepOnce();
+});
+
 setConn(false);
+stopWarningBeep();
 log("Page loaded");
